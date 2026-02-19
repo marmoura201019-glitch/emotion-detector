@@ -28,18 +28,47 @@
         }
 
         async function init() {
-            const recognizer = await createModel();
-            const classLabels = recognizer.wordLabels();
+    const recognizer = await createModel();
+    const classLabels = recognizer.wordLabels();
 
-            recognizer.listen(result => {
-                const scores = result.scores;
-                let maxScore = 0;
-                let detected = "";
+    function startListening() {
+        recognizer.listen(result => {
+            const scores = result.scores;
+            let maxScore = 0;
+            let detected = "";
 
-                for (let i = 0; i < classLabels.length; i++) {
-                    if (scores[i] > maxScore) {
-                        maxScore = scores[i];
-                        detected = classLabels[i];
+            for (let i = 0; i < classLabels.length; i++) {
+                if (scores[i] > maxScore) {
+                    maxScore = scores[i];
+                    detected = classLabels[i];
+                }
+            }
+
+            detected = detected.toLowerCase();
+
+            if (detected !== lastDetected) {
+                lastDetected = detected;
+
+                recognizer.stopListening(); // ⛔ STOP listening
+                showAdvice(detected);
+
+                // ⏳ Wait 20 seconds before listening again
+                setTimeout(() => {
+                    lastDetected = "";
+                    document.getElementById("emotion").innerText = "";
+                    startListening(); // ▶ Start again
+                }, 20000);
+            }
+
+        }, {
+            includeSpectrogram: true,
+            probabilityThreshold: 0.8,
+            overlapFactor: 0.5
+        });
+    }
+
+    startListening();
+}
                     }
                 }
 
