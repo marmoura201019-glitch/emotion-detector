@@ -1,108 +1,109 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Emotion Detector</title>
-<style>
-  body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-  #label-container { 
-    font-size: 2em; 
-    margin-top: 20px; 
-    padding: 20px; 
-    background-color: #f0f8ff; 
-    border-radius: 10px; 
-    display: inline-block; 
-    min-width: 200px;
-  }
-  #advice-container { 
-    font-size: 1.1em; 
-    margin-top: 15px; 
-    color: #333; 
-    max-width: 600px; 
-    margin-left: auto; 
-    margin-right: auto; 
-    line-height: 1.5; 
-    padding: 15px; 
-    border-left: 4px solid #007BFF; 
-    background-color: #f9f9f9; 
-    border-radius: 5px;
-  }
-  button { font-size: 1em; padding: 10px 20px; margin-top: 20px; cursor: pointer; }
-</style>
+    <meta charset="UTF-8">
+    <title>Emotion Detector</title>
 </head>
-<body>
+<body style="text-align:center; font-family:Arial; padding-top:40px;">
 
-<h1>Teachable Machine Emotion Detector</h1>
-<div id="label-container">Say something...</div>
-<div id="advice-container">Advice will appear here.</div>
-<button type="button" onclick="init()">Start</button>
+    <div style="font-size:28px; font-weight:bold;">Emotion Detector</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
+    <div id="emotion" style="margin-top:30px; font-size:24px; font-weight:bold;"></div>
+    <div id="advice" style="margin-top:15px; font-size:18px; color:darkgreen; max-width:600px; margin-left:auto; margin-right:auto;"></div>
 
-<script type="text/javascript">
-const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
-let recognizer;
-let labelContainer = document.getElementById("label-container");
-let adviceContainer = document.getElementById("advice-container");
-let currentEmotion = "";
-let lastChangeTime = Date.now();
-const cooldown = 1000; // 1 second before allowing a new change
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
 
-const adviceMap = {
-    "happy": "You are feeling happy right now, which is wonderful! Embrace this positivity and allow yourself to enjoy the moment fully. Smile, be grateful for the little joys around you, and share your good energy with others. Happiness can grow when you focus on the good things in life, and it often spreads to those near you. Take a deep breath and let yourself savor this feeling.",
-    "sad": "Feeling sad is a natural part of life, and it’s okay to let yourself feel it. Take some time to reflect on why you feel this way, but try not to dwell too long on negative thoughts. Talk to someone you trust about your feelings, write them down, or listen to calming music. Remember that sadness passes with time, and taking small steps to care for yourself can help you feel better.",
-    "angry": "Anger can feel overwhelming, but it’s important to manage it in a healthy way. Take a moment to breathe deeply and step back from the situation causing your anger. Consider why you feel this way and if there’s a constructive way to respond. Physical activity, like a short walk, can also help release tension. Remember, expressing anger calmly and thoughtfully is much more effective than letting it explode.",
-    "neutral": "You are feeling neutral at the moment, which is a good opportunity to find balance and focus. Use this calm state to plan your day, set small goals, or reflect quietly on what you want to achieve. Neutral moments are perfect for resetting your mind and preparing for anything that comes next without feeling stressed or overly emotional.",
-    "surprised": "You seem surprised, which is your brain’s way of alerting you to something unexpected. Take a moment to process what has happened before reacting. Surprises can be exciting or confusing, but pausing helps you respond thoughtfully. Try to analyze the situation calmly, learn from it, and enjoy the new perspective it may give you.",
-    "excited": "You are feeling excited, which is great energy to channel into positive actions. Take a moment to focus on what is making you feel this way and consider how you can make the most of it. Share your excitement with others, plan your next steps carefully, and use this momentum to accomplish something meaningful. Enjoy this energy, but keep it balanced so it doesn’t overwhelm you."
-};
+    <script>
+        const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
+        let lastDetected = "";
+        let adviceTimeout = null;
 
-async function createModel() {
-    const checkpointURL = URL + "model.json";
-    const metadataURL = URL + "metadata.json";
+        async function createModel() {
+            const checkpointURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+            const recognizer = speechCommands.create("BROWSER_FFT", undefined, checkpointURL, metadataURL);
+            await recognizer.ensureModelLoaded();
+            return recognizer;
+        }
 
-    recognizer = speechCommands.create(
-        "BROWSER_FFT",
-        undefined,
-        checkpointURL,
-        metadataURL
-    );
+        async function init() {
+            const recognizer = await createModel();
+            const classLabels = recognizer.wordLabels();
 
-    await recognizer.ensureModelLoaded();
-    return recognizer;
-}
+            recognizer.listen(result => {
+                const scores = result.scores;
+                let maxScore = 0;
+                let detected = "";
 
-async function init() {
-    await createModel();
-    const classLabels = recognizer.wordLabels();
+                for (let i = 0; i < classLabels.length; i++) {
+                    if (scores[i] > maxScore) {
+                        maxScore = scores[i];
+                        detected = classLabels[i];
+                    }
+                }
 
-    recognizer.listen(result => {
-        const scores = result.scores;
-        const maxIndex = scores.indexOf(Math.max(...scores));
-        const newEmotion = classLabels[maxIndex];
-        const confidence = scores[maxIndex];
+                detected = detected.toLowerCase();
 
-        if (confidence > 0.9 && newEmotion !== currentEmotion && (Date.now() - lastChangeTime) > cooldown) {
-            currentEmotion = newEmotion;
-            labelContainer.innerHTML = currentEmotion;
+                if (detected !== lastDetected) {
+                    lastDetected = detected;
+                    showAdvice(detected);
+                }
 
-            // Show paragraph advice
-            if(adviceMap[currentEmotion.toLowerCase()]) {
-                adviceContainer.innerHTML = adviceMap[currentEmotion.toLowerCase()];
+            }, {
+                includeSpectrogram: true,
+                probabilityThreshold: 0.7,
+                invokeCallbackOnNoiseAndUnknown: true,
+                overlapFactor: 0.5
+            });
+        }
+
+        window.onload = init;
+
+        function showAdvice(detected) {
+            let adviceOptions = [];
+
+            if (detected === "happy") {
+                adviceOptions = [
+                    "I hear happiness in your voice! Enjoy this feeling and share it with someone around you.",
+                    "Your positive energy is contagious! Celebrate small wins and spread your joy."
+                ];
+            } else if (detected === "angry") {
+                adviceOptions = [
+                    "I sense frustration. Take a deep breath, step back, and respond calmly.",
+                    "Anger is natural. Pause, release tension safely, and think before you act."
+                ];
+            } else if (detected === "sad") {
+                adviceOptions = [
+                    "I sense sadness. Take a moment to care for yourself, maybe do something comforting.",
+                    "Feeling down is normal. A short walk, journaling, or talking to someone can help."
+                ];
             } else {
-                adviceContainer.innerHTML = "No advice available for this emotion.";
+                adviceOptions = ["Neutral tone detected. Take a moment to check in with yourself."];
             }
 
-            lastChangeTime = Date.now();
+            const advice = adviceOptions[Math.floor(Math.random() * adviceOptions.length)];
+
+            document.getElementById("emotion").innerText =
+                "Detected Emotion: " + detected.charAt(0).toUpperCase() + detected.slice(1);
+
+            const box = document.getElementById("advice");
+            box.innerHTML = "";
+            let i = 0;
+
+            if (adviceTimeout) clearTimeout(adviceTimeout);
+
+            let typing = setInterval(function() {
+                if (i < advice.length) {
+                    box.innerHTML += advice.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typing);
+                    adviceTimeout = setTimeout(() => { box.innerHTML = ""; }, 10000);
+                }
+            }, 35);
         }
-    }, {
-        includeSpectrogram: true,
-        probabilityThreshold: 0.9,
-        overlapFactor: 0.6
-    });
-}
-</script>
+    </script>
 
 </body>
 </html>
