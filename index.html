@@ -30,17 +30,28 @@ async function init() {
         labelContainer.appendChild(document.createElement("div"));
     }
 
-    recognizer.listen(result => {
-        const scores = result.scores;
-        for (let i = 0; i < classLabels.length; i++) {
-            const classPrediction = classLabels[i] + ": " + result.scores[i].toFixed(2);
-            labelContainer.childNodes[i].innerHTML = classPrediction;
-        }
-    }, {
-        includeSpectrogram: true,
-        probabilityThreshold: 0.75,
-        invokeCallbackOnNoiseAndUnknown: true,
-        overlapFactor: 0.50
+    let lastPredictions = [];
+const maxHistory = 5; // smooth over last 5 predictions
+
+recognizer.listen(result => {
+    const scores = result.scores;
+    const maxIndex = scores.indexOf(Math.max(...scores));
+    lastPredictions.push(maxIndex);
+
+    if (lastPredictions.length > maxHistory) lastPredictions.shift();
+
+    // get the most common prediction in history
+    const counts = {};
+    lastPredictions.forEach(i => counts[i] = (counts[i] || 0) + 1);
+    const mostCommonIndex = Object.keys(counts).reduce((a,b) => counts[a] > counts[b] ? a : b);
+
+    // show correct label
+    labelContainer.innerHTML = classLabels[mostCommonIndex];
+}, {
+    includeSpectrogram: true,
+    probabilityThreshold: 0.9, // high confidence
+    overlapFactor: 0.6         // slightly slower checks
+});
     });
 }
 </script>
