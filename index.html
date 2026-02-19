@@ -1,22 +1,90 @@
-let lastPredictions = [];
-const maxHistory = 5; // smooth over last 5 predictions
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Emotion Detector</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+  #label-container { font-size: 2em; margin-top: 20px; }
+  #advice-container { font-size: 1.2em; margin-top: 10px; color: #555; }
+  button { font-size: 1em; padding: 10px 20px; margin-top: 20px; }
+</style>
+</head>
+<body>
 
-recognizer.listen(result => {
-    const scores = result.scores;
-    const maxIndex = scores.indexOf(Math.max(...scores));
-    lastPredictions.push(maxIndex);
+<h1>Teachable Machine Emotion Detector</h1>
+<div id="label-container">Say something...</div>
+<div id="advice-container"></div>
+<button type="button" onclick="init()">Start</button>
 
-    if (lastPredictions.length > maxHistory) lastPredictions.shift();
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
 
-    // get the most common prediction in history
-    const counts = {};
-    lastPredictions.forEach(i => counts[i] = (counts[i] || 0) + 1);
-    const mostCommonIndex = Object.keys(counts).reduce((a,b) => counts[a] > counts[b] ? a : b);
+<script type="text/javascript">
+const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
+let recognizer;
+let labelContainer = document.getElementById("label-container");
+let adviceContainer = document.getElementById("advice-container");
+let currentEmotion = "";
+let lastChangeTime = Date.now();
+const cooldown = 1000; // 1 second before allowing a new change
 
-    // show correct label
-    labelContainer.innerHTML = classLabels[mostCommonIndex];
-}, {
-    includeSpectrogram: true,
-    probabilityThreshold: 0.9, // high confidence
-    overlapFactor: 0.6         // slightly slower checks to reduce false flips
-});
+const adviceMap = {
+    "happy": "Keep smiling! Enjoy the good vibes 😊",
+    "sad": "Take a deep breath, it’s okay to feel sad.",
+    "angry": "Try to calm down and breathe slowly.",
+    "neutral": "Everything seems balanced, stay focused.",
+    "surprised": "Wow! Something caught your attention!",
+    "excited": "Great energy! Use it positively!"
+};
+
+async function createModel() {
+    const checkpointURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+
+    recognizer = speechCommands.create(
+        "BROWSER_FFT",
+        undefined,
+        checkpointURL,
+        metadataURL
+    );
+
+    await recognizer.ensureModelLoaded();
+    return recognizer;
+}
+
+async function init() {
+    await createModel();
+    const classLabels = recognizer.wordLabels();
+
+    recognizer.listen(result => {
+        const scores = result.scores;
+        const maxIndex = scores.indexOf(Math.max(...scores));
+        const newEmotion = classLabels[maxIndex];
+        const confidence = scores[maxIndex];
+
+        // only update if high confidence and cooldown passed
+        if(confidence > 0.9 && (Date.now() - lastChangeTime) > cooldown) {
+            if(newEmotion !== currentEmotion) {
+                currentEmotion = newEmotion;
+                labelContainer.innerHTML = currentEmotion;
+                lastChangeTime = Date.now();
+
+                // show advice if available
+                if(adviceMap[currentEmotion.toLowerCase()]) {
+                    adviceContainer.innerHTML = adviceMap[currentEmotion.toLowerCase()];
+                } else {
+                    adviceContainer.innerHTML = "";
+                }
+            }
+        }
+    }, {
+        includeSpectrogram: true,
+        probabilityThreshold: 0.9,
+        overlapFactor: 0.6
+    });
+}
+</script>
+
+</body>
+</html>
