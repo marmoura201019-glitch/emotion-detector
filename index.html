@@ -2,116 +2,78 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Sad Emotion Detector</title>
+<title>Emotion Detector</title>
+
 <style>
 body {
     text-align: center;
     font-family: Arial, sans-serif;
-    padding-top: 60px;
     background-color: #f4f4f4;
+    padding-top: 60px;
 }
-#emotion {
-    margin-top: 30px;
-    font-size: 28px;
-    font-weight: bold;
+
+h1 {
+    font-size: 32px;
 }
-#advice {
-    margin-top: 20px;
-    font-size: 18px;
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
-    color: darkblue;
-}
+
 button {
-    margin-top: 25px;
-    padding: 12px 24px;
+    margin: 10px;
+    padding: 12px 25px;
     font-size: 16px;
     cursor: pointer;
+}
+
+#emotion {
+    margin-top: 30px;
+    font-size: 26px;
+    font-weight: bold;
+}
+
+#advice {
+    margin-top: 15px;
+    font-size: 18px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
 }
 </style>
 </head>
 
 <body>
 
-<h1>Sad Emotion Detector</h1>
+<h1>Emotion Detector</h1>
+
+<button onclick="showEmotion('happy')">Happy</button>
+<button onclick="showEmotion('sad')">Sad</button>
+<button onclick="showEmotion('angry')">Angry</button>
+<button onclick="showEmotion('neutral')">Neutral</button>
 
 <div id="emotion"></div>
 <div id="advice"></div>
 
-<button id="startBtn">Start Listening</button>
-<br>
-<button id="resetBtn">Reset</button>
-
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
-
 <script>
+function showEmotion(emotion) {
 
-const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
-let recognizer;
-let listening = false;
+    let adviceText = "";
 
-async function loadModel() {
-    const checkpointURL = URL + "model.json";
-    const metadataURL = URL + "metadata.json";
+    if (emotion === "happy") {
+        adviceText = "You seem happy! That’s a powerful and positive emotion to experience. Happiness can improve your focus, boost your confidence, and strengthen your relationships with others. Try to hold onto this positive energy and use it to accomplish something meaningful today. Whether it’s helping someone, working on a goal, or simply enjoying the moment, happiness can fuel productivity and creativity. Sharing your joy with others can also brighten their day and create a positive environment around you.";
+    } 
+    else if (emotion === "sad") {
+        adviceText = "You seem sad. It’s completely normal to feel this way sometimes, and it’s important to allow yourself to experience emotions instead of pushing them away. Try to reflect on what might be causing this feeling and give yourself space to process it. Talking to someone you trust, listening to calming music, going for a short walk, or writing your thoughts down can help you feel better. Remember, emotions are temporary, and difficult moments often pass with time and support.";
+    } 
+    else if (emotion === "angry") {
+        adviceText = "You seem angry. Anger is a strong emotion that can sometimes take control if we react too quickly. Instead of responding immediately, pause and take a few deep breaths. Giving yourself a short break can help you think clearly and avoid saying or doing something you might regret. Try to identify what triggered your anger and consider a calm way to address it. Managing anger effectively shows maturity and emotional intelligence.";
+    } 
+    else {
+        adviceText = "You seem neutral. This balanced emotional state can help you think clearly and make rational decisions. Being neutral doesn’t mean you feel nothing—it often means you are calm and steady. Use this state to focus on tasks, plan ahead, or reflect on your goals. Staying emotionally balanced can help you handle challenges more effectively and maintain control in different situations.";
+    }
 
-    recognizer = speechCommands.create(
-        "BROWSER_FFT",
-        undefined,
-        checkpointURL,
-        metadataURL
-    );
+    document.getElementById("emotion").innerText =
+        "Detected Emotion: " + emotion.charAt(0).toUpperCase() + emotion.slice(1);
 
-    await recognizer.ensureModelLoaded();
+    document.getElementById("advice").innerText = adviceText;
 }
-
-async function startListening() {
-
-    if (listening || !recognizer) return;
-
-    listening = true;
-    document.getElementById("emotion").innerText = "Listening...";
-    document.getElementById("advice").innerText = "";
-
-    const labels = recognizer.wordLabels();
-
-    recognizer.listen(result => {
-
-        const scores = result.scores;
-        const highestScore = Math.max(...scores);
-        const highestIndex = scores.indexOf(highestScore);
-        const detectedEmotion = labels[highestIndex].toLowerCase();
-
-        // ONLY detect SAD
-        if (detectedEmotion === "sad" && highestScore > 0.85) {
-
-            recognizer.stopListening();
-            listening = false;
-
-            document.getElementById("emotion").innerText =
-                "Detected Emotion: Sad";
-
-            document.getElementById("advice").innerText =
-                "Sadness detected. It’s okay to feel this way. Take a moment for yourself, breathe slowly, and consider talking to someone you trust.";
-        }
-
-    }, {
-        probabilityThreshold: 0.85,
-        overlapFactor: 0.5
-    });
-}
-
-function resetApp() {
-    document.getElementById("emotion").innerText = "";
-    document.getElementById("advice").innerText = "";
-}
-
-document.getElementById("startBtn").addEventListener("click", startListening);
-document.getElementById("resetBtn").addEventListener("click", resetApp);
-
-window.onload = loadModel;
-
 </script>
 
 </body>
