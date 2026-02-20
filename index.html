@@ -1,29 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Emotion Detector</title>
+<meta charset="UTF-8">
+<title>Emotion Detector</title>
+<style>
+body {
+    text-align: center;
+    font-family: Arial, sans-serif;
+    padding-top: 50px;
+    background-color: #f4f4f4;
+}
+#emotion {
+    margin-top: 30px;
+    font-size: 26px;
+    font-weight: bold;
+}
+#advice {
+    margin-top: 20px;
+    font-size: 18px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    color: darkgreen;
+}
+button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+</style>
 </head>
 
-<body style="text-align:center; font-family:Arial; padding-top:40px; direction:ltr;">
+<body>
 
-<h2>Emotion Detector</h2>
+<h1>AI Emotion Detector</h1>
 
-<div id="emotion" style="margin-top:30px; font-size:24px; font-weight:bold;"></div>
-<div id="advice" style="margin-top:15px; font-size:18px; color:darkgreen; max-width:600px; margin:auto;"></div>
+<div id="emotion"></div>
+<div id="advice"></div>
 
-<button id="startBtn" style="margin-top:25px; padding:10px 20px; font-size:16px;">
-Start Listening
-</button>
+<button id="startBtn">Start Listening</button>
+<br>
+<button id="resetBtn">Reset</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
 
 <script>
-
 const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
-let recognizer = null;
-let listening = false;
+
+let recognizer;
+let isListening = false;
+let audioContext;
+let analyser;
+let microphone;
+let dataArray;
 
 async function loadModel() {
     const checkpointURL = URL + "model.json";
@@ -37,19 +68,35 @@ async function loadModel() {
     );
 
     await recognizer.ensureModelLoaded();
-    console.log("Model Loaded");
+}
+
+// 🎤 Setup microphone volume detection
+async function setupMic() {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    microphone = audioContext.createMediaStreamSource(stream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    microphone.connect(analyser);
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+}
+
+function getVolumeLevel() {
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+    }
+    return sum / dataArray.length;
 }
 
 async function startListening() {
 
-    if (!recognizer) {
-        alert("Model not loaded yet. Wait 2 seconds and try again.");
-        return;
-    }
+    if (isListening) return;
+    if (!recognizer) return;
 
-    if (listening) return;
+    isListening = true;
 
-    listening = true;
     document.getElementById("emotion").innerText = "Listening...";
     document.getElementById("advice").innerText = "";
 
@@ -57,24 +104,33 @@ async function startListening() {
 
     recognizer.listen(result => {
 
+        const volume = getVolumeLevel();
+
+        // 🔵 If voice is VERY LOW → force SAD
+        if (volume < 10) {
+            recognizer.stopListening();
+            isListening = false;
+            showAdvice("sad");
+            return;
+        }
+
         const scores = result.scores;
-        let highest = 0;
-        let index = 0;
+        let highestScore = 0;
+        let highestIndex = 0;
 
         for (let i = 0; i < scores.length; i++) {
-            if (scores[i] > highest) {
-                highest = scores[i];
-                index = i;
+            if (scores[i] > highestScore) {
+                highestScore = scores[i];
+                highestIndex = i;
             }
         }
 
-        if (highest > 0.85) {
+        if (highestScore > 0.85) {
+            recognizer.stopListening();
+            isListening = false;
 
-            recognizer.stopListening(); // STOP
-            listening = false;
-
-            const emotion = labels[index].toLowerCase();
-            showResult(emotion);
+            const emotion = labels[highestIndex].toLowerCase();
+            showAdvice(emotion);
         }
 
     }, {
@@ -83,30 +139,40 @@ async function startListening() {
     });
 }
 
-function showResult(emotion) {
+function showAdvice(emotion) {
 
-    let advice = "";
+    let adviceText = "";
 
     if (emotion === "happy") {
-        advice = "You sound happy. Keep enjoying this positive energy and use it to do something meaningful.";
+        adviceText = "You sound happy. Keep embracing your positive energy and share it with others.";
     } 
     else if (emotion === "angry") {
-        advice = "Anger detected. Take a breath, pause, and respond calmly.";
+        adviceText = "Anger detected. Take a deep breath and respond calmly.";
     } 
     else if (emotion === "sad") {
-        advice = "Sadness detected. Be kind to yourself and talk to someone you trust.";
+        adviceText = "Low tone detected. You may be feeling sad. Take care of yourself and talk to someone you trust.";
     } 
     else {
-        advice = "Neutral tone detected. Take a moment to reset and refocus.";
+        adviceText = "Neutral tone detected. Take a moment to reflect.";
     }
 
     document.getElementById("emotion").innerText =
-        "Detected Emotion: " + emotion;
+        "Detected Emotion: " + emotion.charAt(0).toUpperCase() + emotion.slice(1);
 
-    document.getElementById("advice").innerText = advice;
+    document.getElementById("advice").innerText = adviceText;
 }
 
-document.getElementById("startBtn").addEventListener("click", startListening);
+function resetApp() {
+    document.getElementById("emotion").innerText = "";
+    document.getElementById("advice").innerText = "";
+}
+
+document.getElementById("startBtn").addEventListener("click", async () => {
+    await setupMic();
+    startListening();
+});
+
+document.getElementById("resetBtn").addEventListener("click", resetApp);
 
 window.onload = loadModel;
 
