@@ -104,40 +104,40 @@ async function startListening() {
 
     recognizer.listen(result => {
 
-        const volume = getVolumeLevel();
+    const volume = getVolumeLevel();
+    const scores = result.scores;
+    const highestScore = Math.max(...scores);
+    const highestIndex = scores.indexOf(highestScore);
+    const modelEmotion = recognizer.wordLabels()[highestIndex].toLowerCase();
 
-        // 🔵 If voice is VERY LOW → force SAD
-        if (volume < 10) {
-            recognizer.stopListening();
-            isListening = false;
-            showAdvice("sad");
-            return;
-        }
+    let finalEmotion = modelEmotion;
 
-        const scores = result.scores;
-        let highestScore = 0;
-        let highestIndex = 0;
+    // 🔴 Angry = loud voice
+    if (volume > 25 && highestScore < 0.9) {
+        finalEmotion = "angry";
+    }
 
-        for (let i = 0; i < scores.length; i++) {
-            if (scores[i] > highestScore) {
-                highestScore = scores[i];
-                highestIndex = i;
-            }
-        }
+    // 🔵 Sad = low voice (but not silence)
+    else if (volume > 2 && volume < 6 && highestScore < 0.7) {
+        finalEmotion = "sad";
+    }
 
-        if (highestScore > 0.85) {
-            recognizer.stopListening();
-            isListening = false;
+    // 🟢 Happy = medium voice
+    else if (volume >= 6 && volume <= 20 && highestScore < 0.7) {
+        finalEmotion = "happy";
+    }
 
-            const emotion = labels[highestIndex].toLowerCase();
-            showAdvice(emotion);
-        }
+    if (highestScore > 0.85 || volume > 25 || (volume > 2 && volume < 6)) {
 
-    }, {
-        probabilityThreshold: 0.85,
-        overlapFactor: 0.5
-    });
-}
+        recognizer.stopListening();
+        isListening = false;
+        showAdvice(finalEmotion);
+    }
+
+}, {
+    probabilityThreshold: 0.7,
+    overlapFactor: 0.5
+});
 
 function showAdvice(emotion) {
 
