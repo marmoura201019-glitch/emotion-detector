@@ -1,41 +1,61 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Emotion Detector</title>
-
 <style>
-body {
-    text-align: center;
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    padding-top: 60px;
-}
+    body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding-top: 50px;
+        background-color: #f9f9f9;
+        color: #333;
+    }
 
-h1 {
-    font-size: 32px;
-}
+    h1 {
+        font-size: 36px;
+        color: #007BFF;
+        margin-bottom: 30px;
+    }
 
-button {
-    margin: 10px;
-    padding: 12px 25px;
-    font-size: 16px;
-    cursor: pointer;
-}
+    #emotion {
+        font-size: 28px;
+        font-weight: bold;
+        padding: 20px;
+        margin-top: 20px;
+        background-color: #e0f7fa;
+        border-radius: 10px;
+        display: inline-block;
+        min-width: 250px;
+    }
 
-#emotion {
-    margin-top: 30px;
-    font-size: 26px;
-    font-weight: bold;
-}
+    #advice {
+        font-size: 18px;
+        max-width: 600px;
+        margin: 20px auto 0 auto;
+        padding: 15px;
+        line-height: 1.5;
+        border-left: 5px solid #007BFF;
+        background-color: #ffffff;
+        border-radius: 5px;
+        color: #333;
+    }
 
-#advice {
-    margin-top: 15px;
-    font-size: 18px;
-    max-width: 700px;
-    margin-left: auto;
-    margin-right: auto;
-}
+    button {
+        font-size: 16px;
+        padding: 12px 25px;
+        margin-top: 25px;
+        cursor: pointer;
+        border: none;
+        border-radius: 5px;
+        background-color: #007BFF;
+        color: white;
+        transition: 0.3s;
+    }
+
+    button:hover {
+        background-color: #0056b3;
+    }
 </style>
 </head>
 
@@ -43,36 +63,92 @@ button {
 
 <h1>Emotion Detector</h1>
 
-<button onclick="showEmotion('happy')">Happy</button>
-<button onclick="showEmotion('sad')">Sad</button>
-<button onclick="showEmotion('angry')">Angry</button>
-<button onclick="showEmotion('neutral')">Neutral</button>
+<div id="emotion">Click Start to detect your emotion</div>
+<div id="advice">Advice will appear here.</div>
 
-<div id="emotion"></div>
-<div id="advice"></div>
+<button onclick="startListening()">Start Listening</button>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
 
 <script>
-function showEmotion(emotion) {
+const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
+let recognizer = null;
+let listening = false;
 
-    let adviceText = "";
+// Load the model
+async function loadModel() {
+    recognizer = speechCommands.create(
+        "BROWSER_FFT",
+        undefined,
+        URL + "model.json",
+        URL + "metadata.json"
+    );
+    await recognizer.ensureModelLoaded();
+    console.log("Model loaded");
+}
+loadModel();
+
+// Start listening function
+async function startListening() {
+    if (!recognizer) {
+        alert("Model not loaded yet. Wait a few seconds and try again.");
+        return;
+    }
+    if (listening) return;
+
+    listening = true;
+    document.getElementById("emotion").innerText = "Listening...";
+    document.getElementById("advice").innerText = "";
+
+    const labels = recognizer.wordLabels();
+
+    recognizer.listen(result => {
+        const scores = result.scores;
+        let maxScore = 0;
+        let maxIndex = 0;
+
+        for (let i = 0; i < scores.length; i++) {
+            if (scores[i] > maxScore) {
+                maxScore = scores[i];
+                maxIndex = i;
+            }
+        }
+
+        if (maxScore > 0.85) { // confident detection
+            recognizer.stopListening(); // stop immediately
+            listening = false;
+
+            const emotion = labels[maxIndex].toLowerCase();
+            showEmotion(emotion);
+        }
+
+    }, {
+        includeSpectrogram: true,
+        probabilityThreshold: 0.85,
+        overlapFactor: 0.5
+    });
+}
+
+// Show emotion and advice
+function showEmotion(emotion) {
+    let advice = "";
 
     if (emotion === "happy") {
-        adviceText = "You seem happy! That’s a powerful and positive emotion to experience. Happiness can improve your focus, boost your confidence, and strengthen your relationships with others. Try to hold onto this positive energy and use it to accomplish something meaningful today. Whether it’s helping someone, working on a goal, or simply enjoying the moment, happiness can fuel productivity and creativity. Sharing your joy with others can also brighten their day and create a positive environment around you.";
-    } 
-    else if (emotion === "sad") {
-        adviceText = "You seem sad. It’s completely normal to feel this way sometimes, and it’s important to allow yourself to experience emotions instead of pushing them away. Try to reflect on what might be causing this feeling and give yourself space to process it. Talking to someone you trust, listening to calming music, going for a short walk, or writing your thoughts down can help you feel better. Remember, emotions are temporary, and difficult moments often pass with time and support.";
+        advice = "You sound happy! Embrace this positive energy and share it with others. Small moments of joy can brighten your whole day and inspire those around you.";
     } 
     else if (emotion === "angry") {
-        adviceText = "You seem angry. Anger is a strong emotion that can sometimes take control if we react too quickly. Instead of responding immediately, pause and take a few deep breaths. Giving yourself a short break can help you think clearly and avoid saying or doing something you might regret. Try to identify what triggered your anger and consider a calm way to address it. Managing anger effectively shows maturity and emotional intelligence.";
+        advice = "I detect anger. Take a deep breath and pause for a moment. Respond calmly, and try to channel your energy into something productive.";
+    } 
+    else if (emotion === "sad") {
+        advice = "You seem sad. It's okay to feel this way. Take care of yourself, talk to someone you trust, or do something comforting. Emotions pass with time.";
     } 
     else {
-        adviceText = "You seem neutral. This balanced emotional state can help you think clearly and make rational decisions. Being neutral doesn’t mean you feel nothing—it often means you are calm and steady. Use this state to focus on tasks, plan ahead, or reflect on your goals. Staying emotionally balanced can help you handle challenges more effectively and maintain control in different situations.";
+        advice = "Neutral tone detected. Take a moment to reflect, reset, and focus on the next task or moment.";
     }
 
-    document.getElementById("emotion").innerText =
-        "Detected Emotion: " + emotion.charAt(0).toUpperCase() + emotion.slice(1);
-
-    document.getElementById("advice").innerText = adviceText;
+    document.getElementById("emotion").innerText = "Detected Emotion: " + emotion.charAt(0).toUpperCase() + emotion.slice(1);
+    document.getElementById("advice").innerText = advice;
 }
 </script>
 
