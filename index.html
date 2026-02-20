@@ -2,17 +2,17 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Emotion Detector</title>
+<title>Sad Emotion Detector</title>
 <style>
 body {
     text-align: center;
     font-family: Arial, sans-serif;
-    padding-top: 50px;
+    padding-top: 60px;
     background-color: #f4f4f4;
 }
 #emotion {
     margin-top: 30px;
-    font-size: 26px;
+    font-size: 28px;
     font-weight: bold;
 }
 #advice {
@@ -21,11 +21,11 @@ body {
     max-width: 600px;
     margin-left: auto;
     margin-right: auto;
-    color: darkgreen;
+    color: darkblue;
 }
 button {
-    margin-top: 20px;
-    padding: 10px 20px;
+    margin-top: 25px;
+    padding: 12px 24px;
     font-size: 16px;
     cursor: pointer;
 }
@@ -34,7 +34,7 @@ button {
 
 <body>
 
-<h1>AI Emotion Detector</h1>
+<h1>Sad Emotion Detector</h1>
 
 <div id="emotion"></div>
 <div id="advice"></div>
@@ -47,14 +47,10 @@ button {
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
 
 <script>
-const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
 
+const URL = "https://teachablemachine.withgoogle.com/models/RRSNH3AgE/";
 let recognizer;
-let isListening = false;
-let audioContext;
-let analyser;
-let microphone;
-let dataArray;
+let listening = false;
 
 async function loadModel() {
     const checkpointURL = URL + "model.json";
@@ -70,33 +66,11 @@ async function loadModel() {
     await recognizer.ensureModelLoaded();
 }
 
-// 🎤 Setup microphone volume detection
-async function setupMic() {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    microphone = audioContext.createMediaStreamSource(stream);
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    microphone.connect(analyser);
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
-}
-
-function getVolumeLevel() {
-    analyser.getByteFrequencyData(dataArray);
-    let sum = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-    }
-    return sum / dataArray.length;
-}
-
 async function startListening() {
 
-    if (isListening) return;
-    if (!recognizer) return;
+    if (listening || !recognizer) return;
 
-    isListening = true;
-
+    listening = true;
     document.getElementById("emotion").innerText = "Listening...";
     document.getElementById("advice").innerText = "";
 
@@ -104,62 +78,28 @@ async function startListening() {
 
     recognizer.listen(result => {
 
-    const volume = getVolumeLevel();
-    const scores = result.scores;
-    const highestScore = Math.max(...scores);
-    const highestIndex = scores.indexOf(highestScore);
-    const modelEmotion = recognizer.wordLabels()[highestIndex].toLowerCase();
+        const scores = result.scores;
+        const highestScore = Math.max(...scores);
+        const highestIndex = scores.indexOf(highestScore);
+        const detectedEmotion = labels[highestIndex].toLowerCase();
 
-    let finalEmotion = modelEmotion;
+        // ONLY detect SAD
+        if (detectedEmotion === "sad" && highestScore > 0.85) {
 
-    // 🔴 Angry = loud voice
-    if (volume > 25 && highestScore < 0.9) {
-        finalEmotion = "angry";
-    }
+            recognizer.stopListening();
+            listening = false;
 
-    // 🔵 Sad = low voice (but not silence)
-    else if (volume > 2 && volume < 6 && highestScore < 0.7) {
-        finalEmotion = "sad";
-    }
+            document.getElementById("emotion").innerText =
+                "Detected Emotion: Sad";
 
-    // 🟢 Happy = medium voice
-    else if (volume >= 6 && volume <= 20 && highestScore < 0.7) {
-        finalEmotion = "happy";
-    }
+            document.getElementById("advice").innerText =
+                "Sadness detected. It’s okay to feel this way. Take a moment for yourself, breathe slowly, and consider talking to someone you trust.";
+        }
 
-    if (highestScore > 0.85 || volume > 25 || (volume > 2 && volume < 6)) {
-
-        recognizer.stopListening();
-        isListening = false;
-        showAdvice(finalEmotion);
-    }
-
-}, {
-    probabilityThreshold: 0.7,
-    overlapFactor: 0.5
-});
-
-function showAdvice(emotion) {
-
-    let adviceText = "";
-
-    if (emotion === "happy") {
-        adviceText = "You sound happy. Keep embracing your positive energy and share it with others.";
-    } 
-    else if (emotion === "angry") {
-        adviceText = "Anger detected. Take a deep breath and respond calmly.";
-    } 
-    else if (emotion === "sad") {
-        adviceText = "Low tone detected. You may be feeling sad. Take care of yourself and talk to someone you trust.";
-    } 
-    else {
-        adviceText = "Neutral tone detected. Take a moment to reflect.";
-    }
-
-    document.getElementById("emotion").innerText =
-        "Detected Emotion: " + emotion.charAt(0).toUpperCase() + emotion.slice(1);
-
-    document.getElementById("advice").innerText = adviceText;
+    }, {
+        probabilityThreshold: 0.85,
+        overlapFactor: 0.5
+    });
 }
 
 function resetApp() {
@@ -167,11 +107,7 @@ function resetApp() {
     document.getElementById("advice").innerText = "";
 }
 
-document.getElementById("startBtn").addEventListener("click", async () => {
-    await setupMic();
-    startListening();
-});
-
+document.getElementById("startBtn").addEventListener("click", startListening);
 document.getElementById("resetBtn").addEventListener("click", resetApp);
 
 window.onload = loadModel;
